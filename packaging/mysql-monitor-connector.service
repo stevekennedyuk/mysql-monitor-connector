@@ -1,0 +1,27 @@
+[Unit]
+Description=MySQL Monitor Connector
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mysql-monitor
+Group=mysql-monitor
+ExecStart=/usr/local/bin/mysql-monitor-connector run --config-dir /etc/mysql-monitor-connector
+Restart=on-failure
+RestartSec=5s
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/mysql-monitor-connector
+
+[Install]
+WantedBy=multi-user.target
