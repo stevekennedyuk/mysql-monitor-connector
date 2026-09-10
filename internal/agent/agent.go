@@ -230,6 +230,7 @@ func newHTTPClient(cfg config.Config) (*http.Client, error) {
 		}
 	}
 	transport := &http.Transport{
+		Proxy:             http.ProxyFromEnvironment,
 		TLSClientConfig:   &tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{cert}, RootCAs: roots},
 		ForceAttemptHTTP2: true, MaxIdleConns: 2, MaxIdleConnsPerHost: 2, IdleConnTimeout: 90 * time.Second,
 		TLSHandshakeTimeout: 10 * time.Second, ResponseHeaderTimeout: 70 * time.Second,

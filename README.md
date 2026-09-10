@@ -1,74 +1,36 @@
 # MySQL Monitor Connector
 
-A small, outbound-only Linux connector for a hosted MySQL monitoring service. It polls a control plane over HTTPS with mutual TLS, verifies every job with Ed25519, and executes only collectors compiled into the binary against locally configured MySQL targets.
+A small, outbound-only Linux connector for a hosted MySQL monitoring service. It polls a control plane over HTTPS with mutual TLS, verifies every job with Ed25519, and runs only collectors compiled into the binary against locally configured MySQL targets.
 
-This repository contains the customer-side connector. The service must implement the API in [docs/control-plane-api.md](docs/control-plane-api.md).
+The connector has no inbound listener. The cloud service cannot supply database addresses, credentials, SQL, file paths, or executable commands.
 
-## Security properties
+## Architecture
 
-- No inbound listener or firewall rule.
-- No cloud-supplied database address, credentials, SQL, files, or executable commands.
-- MySQL credentials remain on the customer host.
-- TCP MySQL targets require a CA and verified TLS server name.
-- Signed jobs have tenant/connector binding, expiry, nonce, and a persistent monotonic sequence.
-- Fixed query catalogue, prepared values, one statement per operation, and bounded execution/results.
-- Dedicated unprivileged systemd service with no Linux capabilities.
-
-This is an MVP, not a complete production release. Before production use, add certificate renewal, a durable encrypted result spool, signed update metadata, integration tests against supported MySQL/MariaDB versions, external security review, and operational key-management procedures.
-
-## Build and test
-
-Requires Go 1.23 or newer.
-
-```sh
-make check
-make build
-make release
+```text
+Monitoring control plane
+          ^
+          | outbound HTTPS 443: mTLS, signed jobs and bounded results
+          |
+Customer connector
+          |
+          | internal MySQL TLS 3306, or a local Unix socket
+          v
+Customer MySQL servers
 ```
 
-`make build` produces a native development binary. `make release` produces statically linked Linux `amd64` and `arm64` binaries.
+The repository contains the customer connector. A compatible service must implement the [control-plane API](docs/control-plane-api.md).
 
-## Install
+## Documentation
 
-Copy a release archive to the customer system and verify its published signature and checksum. Do not install through a shell piped from the Internet.
+- [Installation and enrollment](docs/installation.md)
+- [Preparing MySQL securely](docs/mysql-setup.md)
+- [Security architecture and threat model](docs/security.md)
+- [Operations, upgrades, and troubleshooting](docs/operations.md)
+- [Control-plane API and server requirements](docs/control-plane-api.md)
+- [Production-readiness checklist](docs/production-readiness.md)
+- [Reporting security vulnerabilities](SECURITY.md)
 
-```sh
-sudo ./packaging/install.sh ./build/mysql-monitor-connector-linux-amd64
-```
-
-Use `mysql-monitor-connector-linux-arm64` instead on a 64-bit ARM Linux host.
-
-Enroll using a single-use token stored in a protected file:
-
-```sh
-sudo mysql-monitor-connector enroll \
-  --service-url https://connect.example.com \
-  --token-file /root/connector-enrollment-token
-sudo chown -R root:mysql-monitor /etc/mysql-monitor-connector
-sudo chmod -R o-rwx /etc/mysql-monitor-connector
-```
-
-Add a TCP target. The password is read from standard input, never an argument:
-
-```sh
-sudo sh -c 'stty -echo; mysql-monitor-connector target add \
-  --name production \
-  --address db01.internal:3306 \
-  --user monitor \
-  --tls-ca /etc/mysql-monitor-connector/mysql-ca.pem \
-  --tls-server-name db01.internal \
-  --password-stdin; stty echo'
-sudo chown -R root:mysql-monitor /etc/mysql-monitor-connector
-```
-
-Test and start it:
-
-```sh
-sudo -u mysql-monitor mysql-monitor-connector target test --name production
-sudo systemctl enable --now mysql-monitor-connector
-```
-
-For a local database, `--network unix --address /run/mysqld/mysqld.sock` is supported.
+Read the production-readiness checklist before deploying this connector against a production database. The current code is an MVP and deliberately does not support arbitrary SQL or database changes.
 
 ## Built-in operations
 
@@ -79,4 +41,35 @@ For a local database, `--network unix --address /run/mysqld/mysqld.sock` is supp
 - `collect.table_io.v1`
 - `collect.lock_waits.v1`
 
-The last three collectors require Performance Schema or the MySQL `sys` schema. Grant only the privileges required by the enabled operations. Do not use a root or application account.
+All operations are read-only and have fixed SQL in the connector. The cloud may lower row, byte, and time limits but cannot raise the connector's locally configured limits.
+
+## Build and test
+
+Go 1.23 or newer is required to build from source.
+
+```sh
+make check
+make build
+make release
+```
+
+`make build` produces a native development binary. `make release` produces statically linked Linux `amd64` and `arm64` binaries in `build/`.
+
+## Quick start
+
+After reviewing the full [installation guide](docs/installation.md):
+
+```sh
+sudo ./packaging/install.sh ./build/mysql-monitor-connector-linux-amd64
+sudo mysql-monitor-connector enroll \
+  --service-url https://connect.example.com \
+  --token-file /root/connector-enrollment-token
+sudo chgrp -R mysql-monitor /etc/mysql-monitor-connector
+sudo chmod -R o-rwx /etc/mysql-monitor-connector
+```
+
+Prepare a dedicated MySQL account as described in [MySQL setup](docs/mysql-setup.md), add the target locally, test it, and then start the service.
+
+## Project status
+
+The connector implements the secure transport and execution boundary, but production deployment also requires a correctly implemented control plane, PKI and signing-key operations, certificate renewal, durable result delivery, signed release artifacts, MySQL-version integration testing, and an independent security review. See the [production-readiness checklist](docs/production-readiness.md).

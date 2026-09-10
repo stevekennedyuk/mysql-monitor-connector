@@ -7,6 +7,7 @@ Wants=network-online.target
 Type=simple
 User=mysql-monitor
 Group=mysql-monitor
+EnvironmentFile=-/etc/mysql-monitor-connector/environment
 ExecStart=/usr/local/bin/mysql-monitor-connector run --config-dir /etc/mysql-monitor-connector
 Restart=on-failure
 RestartSec=5s

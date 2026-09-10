@@ -67,7 +67,11 @@ func Run(ctx context.Context, opts Options) error {
 	csr := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrDER})
 	body, _ := json.Marshal(request{Token: token, CSR: string(csr)})
 
-	transport := &http.Transport{TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12}, ForceAttemptHTTP2: true}
+	transport := &http.Transport{
+		Proxy:             http.ProxyFromEnvironment,
+		TLSClientConfig:   &tls.Config{MinVersion: tls.VersionTLS12},
+		ForceAttemptHTTP2: true,
+	}
 	if opts.CAFile != "" {
 		caPEM, err := os.ReadFile(opts.CAFile)
 		if err != nil {
